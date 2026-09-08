@@ -72,6 +72,33 @@
    "Next" flow and the automated "Watch it fail" flow, across a full real
    ~60-second cycle.
 
+9. **Phase F audit item 1 (config/literal drift) — closed** (commit
+   `ae149e8`). `state.js`'s bare on-load defaults (`patternCount: 3`,
+   `noisePct: 10`) are now named constants (`DEFAULT_PATTERN_COUNT`,
+   `DEFAULT_NOISE_PCT`) — not CONFIG fields, since `CONFIG.MIN_PATTERNS`/
+   `NOISE_MIN` are validation bounds, not sensible demo defaults.
+   `render.js` no longer carries its own independent copy of those same
+   two numbers — its sliders now read initial values from `getState()`
+   directly, closing a real drift risk (the two copies could previously
+   go out of sync). Slider step and decay-range literals moved to named
+   constants (`SLIDER_STEP`, `DECAY_MIN`, `DECAY_MAX`, `DECAY_STEP`) — the
+   only literals left in either file are those constants themselves, plus
+   the untouched `8px` grid-cell sizes (styling, explicitly out of scope).
+   Re-verified in a real browser after the change: same default state
+   (patternCount=3, noisePct=10, similarityScore=100), sliders still
+   functional (identical result to the original slider test), zero
+   console errors. 66/66 tests still passing.
+10. **Phase F audit item 6 (narration coverage) — closed** (commit
+    `9949127`). `NARRATION_SCRIPTS.md` created — the first persistent home
+    for any of these scripts; the original `guidedSequence.js`/
+    `proveItMode.js` scripts had only ever been delivered as chat text,
+    never saved anywhere. Added scripts for `state.js` (256 words),
+    `layout.js` (163 words), and `render.js` (221 words), all under the
+    ~300-word safety margin for a 130-150 wpm pace. Same caveat as
+    `proveItMode.js`'s script carries: word count is a proxy, not an
+    actual timed read — `state.js`'s script has the least margin of the
+    three and is the one to actually time first if that matters.
+
 Full suite: 66/66 passing on this branch (was 64 from the merge, +2 new
 sparse/decay tests).
 
