@@ -13,7 +13,10 @@ export default function LandingPage({ user, onLogout }) {
       {/* Hero Section */}
       <section className="hero-section">
         <div className="hero-content">
-          <span className="hero-tag">Computational Neurobiology Interactive Lab</span>
+          <div className="hero-tag">
+            <span className="dot-indicator"></span>
+            Computational Neurobiology Interactive Lab
+          </div>
           <h1 className="hero-title">Hebbian Synapse Lab</h1>
           <p className="hero-tagline">
             Explore how Hebbian memory retrieval degrades as pattern loads grow, and discover how sparse dynamic gating circumvents saturation capacity.
@@ -53,22 +56,24 @@ export default function LandingPage({ user, onLogout }) {
 
       {/* How it Works Section */}
       <section className="how-it-works-section">
-        <h2>How It Works</h2>
-        <div className="steps-grid">
-          <div className="step-card">
-            <div className="step-number">1</div>
-            <h3>Store Patterns</h3>
-            <p>Select from orthogonal binary memory pattern templates stored directly inside the synapse matrix.</p>
-          </div>
-          <div className="step-card">
-            <div className="step-number">2</div>
-            <h3>Inject Noise</h3>
-            <p>Adjust input bit-flip noise and pattern density sliders to challenge the attractor recall boundaries.</p>
-          </div>
-          <div className="step-card">
-            <div className="step-number">3</div>
-            <h3>Watch Retrieval</h3>
-            <p>Observe real-time iterative energy descent and compare Classical Hopfield saturation against BDH sparse manifolds.</p>
+        <div className="how-it-works-container">
+          <h2>How It Works</h2>
+          <div className="steps-grid">
+            <div className="step-card">
+              <div className="step-number">1</div>
+              <h3>Store Patterns</h3>
+              <p>Select from orthogonal binary memory pattern templates stored directly inside the synapse matrix.</p>
+            </div>
+            <div className="step-card">
+              <div className="step-number">2</div>
+              <h3>Inject Noise</h3>
+              <p>Adjust input bit-flip noise and pattern density sliders to challenge the attractor recall boundaries.</p>
+            </div>
+            <div className="step-card">
+              <div className="step-number">3</div>
+              <h3>Watch Retrieval</h3>
+              <p>Observe real-time iterative energy descent and compare Classical Hopfield saturation against BDH sparse manifolds.</p>
+            </div>
           </div>
         </div>
       </section>
