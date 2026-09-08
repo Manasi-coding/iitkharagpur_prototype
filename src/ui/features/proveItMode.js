@@ -34,7 +34,13 @@ const CAPTIONS = {
   [CLEAN_RECALL_N]: '3 patterns stored. 10% noise in, exact pattern out.',
   [NEAR_LIMIT_N]: '8 patterns stored. Noise no longer fully corrected.',
 };
-const BLOCKED_CAPTION = 'Halted before N=14: insufficient stored presets, not a capacity failure.';
+// Reframed (Option 2, Phase D): this blocked state is the intended ending
+// today, not an apology for an unfinished feature. Confirmed via real
+// N=3/6/8/9 measurements that shrinking the checkpoint list to fit 9
+// presets wouldn't have produced a better ending anyway (N=9 doesn't
+// recall worse than N=8) — so the caption owns the constraint instead of
+// hiding it.
+const BLOCKED_CAPTION = '9 patterns stored — preset budget reached, not a capacity failure. See the BDH comparison for the real crossover.';
 
 function captionFor(result) {
   if (result.blocked) return BLOCKED_CAPTION;
