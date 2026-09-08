@@ -16,11 +16,9 @@ import { advanceGuidedSequence } from '../../../src/ui/features/guidedSequence.j
 import { startProveIt } from '../../../src/ui/features/proveItMode.js';
 import { getFailureGallery } from '../../../src/ui/features/failureGallery.js';
 import { buildRetrievalTrace } from '../../../src/ui/features/traceDebugPanel.js';
-// bdhCallout.js/predictGate.js are not imported directly: both import
-// src/core/findCrossover.js, which is saved in a non-UTF-8 encoding the
-// bundler can't load. See lib/crossoverAnalysis.js for why and what this
-// reimplements (that file's contract, unmodified, just relocated).
-import { buildBdhCallout, submitPrediction } from '../lib/crossoverAnalysis.js';
+import { buildBdhCallout } from '../../../src/ui/features/bdhCallout.js';
+import { submitPrediction } from '../../../src/ui/features/predictGate.js';
+import { renderClaimHeader } from '../../../src/ui/features/claimContract.js';
 
 // createPresetPatterns.js only ships 9 shapes even though CONFIG.MAX_PATTERNS
 // is 20 — cap every pattern-count control at whichever is smaller, mirroring
@@ -148,6 +146,15 @@ export default function DemoPage() {
 
   const bdhCallout = useMemo(() => buildBdhCallout(capacityCurves, CONFIG.PASS_THRESHOLD), [capacityCurves]);
 
+  // claimContract.js's claim text (PLACEHOLDER_CLAIM) is still an
+  // unresolved, unowned team decision (see README_PHASE0.md) — read it from
+  // the real export as-is rather than substituting a nicer sentence, so the
+  // placeholder stays visibly a placeholder for whoever finishes that file.
+  const claimHeader = useMemo(
+    () => renderClaimHeader({ similarityScore: session.similarityScore }),
+    [session.similarityScore]
+  );
+
   const failureGallery = useMemo(() => getFailureGallery(), []);
 
   const [groundTruth] = session.storedPatterns;
@@ -179,7 +186,7 @@ export default function DemoPage() {
       </div>
 
       {/* 1. Top bar with claim + live badge + info tooltip */}
-      <ClaimBadge similarity={session.similarityScore} threshold={CONFIG.PASS_THRESHOLD} claimText={bdhCallout.text} />
+      <ClaimBadge similarity={session.similarityScore} threshold={CONFIG.PASS_THRESHOLD} claimText={claimHeader.claimText} />
 
       <div className="workbench">
         {/* 2. Stored Patterns panel — the actual presets currently written into memory */}
@@ -422,7 +429,12 @@ export default function DemoPage() {
       </section>
 
       {/* 7. Small footer card */}
-      <FooterCard />
+      <FooterCard
+        classicalCrossover={bdhCallout.classicalCrossover}
+        sparseCrossover={bdhCallout.sparseCrossover}
+        threshold={CONFIG.PASS_THRESHOLD}
+        noisePct={session.noisePct}
+      />
     </div>
   );
 }

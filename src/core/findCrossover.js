@@ -1,4 +1,4 @@
-// Phase person3/sweep-crossover-bdh — Person 3.
+// Phase person3/sweep-crossover-bdh â€” Person 3.
 // Pure function. No imports, no state, no side effects.
 // Reports only what the measured curve shows; does NOT reference or implement
 // any theoretical capacity formula (e.g. ~0.138N or any variant thereof).
@@ -11,7 +11,7 @@
  * regardless of actual ordering, but ascending order gives the intended result).
  *
  * If no point falls below the threshold, returns the maximum n present in
- * the curve — the sweep ran its full range without a recall failure at this
+ * the curve â€” the sweep ran its full range without a recall failure at this
  * threshold.
  *
  * Empty curve: returns 0 as a documented sentinel. Zero is not a valid n in
@@ -38,6 +38,6 @@ export function findCrossover(curve, threshold) {
     }
   }
 
-  // No point fell below threshold — return the largest n in the curve.
+  // No point fell below threshold â€” return the largest n in the curve.
   return Math.max(...curve.map(point => point.n));
 }
