@@ -1,0 +1,40 @@
+name: Deploy stopgap UI to GitHub Pages
+
+# Triggers on ml-integration, not the repo's actual default branch
+# (Presets/Retrieval-Core, confirmed stale — same pre-merge commit as
+# ml-integration had before this session's fast-forward). All current
+# work lives on ml-integration; deploying from the real default would
+# publish old, incomplete content.
+on:
+  push:
+    branches: [ml-integration]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      # No build step: this is plain ES modules, no bundler, no
+      # package.json (confirmed absent on this branch). Publishing src/
+      # directly, not the repo root, so the .venv/ Python environment
+      # (Phase 0) and tests/ never end up in the deployed artifact.
+      # Live entry point becomes <pages-url>/ui/index.html.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: src
+      - id: deployment
+        uses: actions/deploy-pages@v4
