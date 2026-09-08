@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function ClaimBadge({ similarity = 85, threshold = 70 }) {
+export default function ClaimBadge({ similarity = 85, threshold = 70, claimText }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const isPassing = similarity >= threshold;
 
@@ -11,7 +11,7 @@ export default function ClaimBadge({ similarity = 85, threshold = 70 }) {
           {isPassing ? '✓ PASS' : '✗ FAIL'}
         </span>
         <span className="claim-text">
-          Hebbian memory retrieval degrades as stored patterns grow, collapsing recall capacity beyond <code>~0.138N</code>.
+          {claimText || 'Hebbian memory retrieval degrades as stored patterns grow.'}
         </span>
         <div className="tooltip-container">
           <button 
@@ -26,7 +26,7 @@ export default function ClaimBadge({ similarity = 85, threshold = 70 }) {
           </button>
           {showTooltip && (
             <div className="tooltip-popup">
-              <b>Pass Condition:</b> Retrieval Similarity ≥ {threshold}%. Currently {similarity.toFixed(1)}%. Hopfield memory limit N=64, P_crit ≈ 8.84.
+              <b>Pass Condition:</b> Retrieval Similarity ≥ {threshold}%. Currently {similarity.toFixed(1)}%.
             </div>
           )}
         </div>
