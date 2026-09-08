@@ -1,146 +1,148 @@
 # Sync Point 1 Readiness — Person 2
 
-Status: ready. Swap is a single import-path change in one test file. Zero
-changes needed to owned module logic (`createPresetPatterns.js`,
-`retrieveIterative.js`), provided Person 1/Person B match the split-doc
-contracts. One coverage gap is documented below and must be closed at the
-actual re-gate, not before.
+Status: the `write()`/`similarity()` swap is **DONE** — real modules confirmed
+matching contract, zero changes needed to owned module logic
+(`createPresetPatterns.js`, `retrieveIterative.js`). Determinism is now
+**unconditional** (real `write()` has zero randomness in any code path).
+The sparse/decay coverage gap is **CLOSED** with real baseline numbers. One
+item remains genuinely open, not yet reconciled — see "Preset-count
+ceiling" below.
 
 ## Files owned by Person 2
 
 - `src/core/createPresetPatterns.js` — DONE, gate-passed (Phase 1)
 - `src/core/retrieveIterative.js` — DONE, gate-passed (Phase 2)
 - `src/ui/features/guidedSequence.js` — DONE (Phase 5): exports `advanceGuidedSequence(guidedStepIndex, write)`, pure function
-- `src/ui/features/proveItMode.js` — not yet built (empty)
+- `src/ui/features/proveItMode.js` — DONE (Phase 6): exports `startProveIt(write, onStep)`, reuses `advanceGuidedSequence` via `setInterval`
 
 ## Stub imports and their swap points
 
-### Shipped modules (`src/core/*.js`)
+### Shipped modules (`src/core/*.js`, `src/ui/features/*.js`)
 
 | File | Stub imports | Swap needed? |
 |---|---|---|
 | `createPresetPatterns.js` | none (write/similarity/injectNoise, real or stub) | No — no dependency exists |
 | `retrieveIterative.js` | none | No — `W` is a plain argument, agnostic to how it was produced |
+| `guidedSequence.js` | none — `write` is injected, not imported | No — same agnostic-to-producer design |
+| `proveItMode.js` | none — `write` is injected, not imported | No — same design |
 
-Neither shipped module imports `write.js`, `similarity.js`, or `injectNoise.js`
-in any form. There is nothing to swap in `src/core/` at Sync Point 1.
+None of the four shipped modules import `write.js`, `similarity.js`, or
+`injectNoise.js` directly, real or stub. There is nothing to swap in
+`src/core/` or `src/ui/features/` at Sync Point 1 — there never was.
 
 ### Tests (`tests/*.js`)
 
-| File | Stub imports | Swap needed? |
+| File | Real imports | Swap status |
 |---|---|---|
-| `tests/createPresetPatterns.test.js` | none | No |
-| `tests/retrieveIterative.test.js` | `scratch/stub-write.js` | **Yes — see below** |
+| `tests/createPresetPatterns.test.js` | none | N/A |
+| `tests/retrieveIterative.test.js` | `../src/core/write.js`, `../src/core/similarity.js` | **DONE** |
 
-`tests/retrieveIterative.test.js` is the only place in Person 2's scope that
-imports a stub. Marked with `TEMPORARY` comments at the exact lines:
+`tests/retrieveIterative.test.js` now imports the real `write()` and
+`similarity()`. The stale `TEMPORARY: swap to real write.js at Sync Point 1`
+comments have been removed — they no longer apply. Two new tests were added
+alongside the swap (see "Sparse/decay coverage" below). Full suite: 66/66
+passing on this branch.
 
-- Line 5-7 (import): `import { write } from '../scratch/stub-write.js';`
-  → change to `import { write } from '../src/core/write.js';` once Person 1's
-  `write.js` lands and gate-passes.
-- Line 21 and line 35 (usage): `const W = write([presets[0].pattern, presets[1].pattern]);`
-  → no change needed to these lines themselves (same call shape for the
-  classical/no-options case); marked only for findability.
+### `similarity.js`
 
-### `similarity.js` (stub or real)
+Now real and imported in two places: `tests/retrieveIterative.test.js` (for
+the sparse/decay tests below) and `tests/presetCorrelation.test.js`, which
+closes the item flagged after Phase 1 — `createPresetPatterns.js`'s
+independent `positionalMatchFraction` check had never been verified against
+Person 1's actual `similarity()`. That file confirms the real `similarity()`
+and the independent check agree on every preset pair, including which pair
+is worst (`l`/`square-outline`, 68.75%).
 
-Not imported anywhere across any of Person 2's four files or their tests.
-`createPresetPatterns.js`'s correlation check (`positionalMatchFraction`) was
-built independently per the Phase 1 requirement and has no coupling to
-Person 1's `similarity()`, real or stub. No swap point exists because no
-dependency exists. `guidedSequence.js` is built and confirmed to have zero
-`similarity()` coupling. If `proveItMode.js` ends up needing `similarity()`
-when built, that will be a new dependency added at that time, not a stub
-swap.
+### `state.js` (Person B) — unchanged, no new evidence this session
 
-### `state.js` (Person B)
-
-Not imported anywhere in Person 2's scope currently — `guidedSequence.js` is
-built and confirmed to have zero `state.js` coupling by design (pure
-function, Phase 5), and `proveItMode.js` is still empty (Phase 6 in
-progress). Per the split doc, Person B owns the actual import-path swap on
-their own side. Nothing pending here yet; if `proveItMode.js` ends up
-needing `state.js` when built, that's a new dependency to add at that time,
-not a swap of an existing reference.
+Not imported anywhere in Person 2's scope currently — `guidedSequence.js`
+and `proveItMode.js` are both built and confirmed to have zero `state.js`
+coupling by design (pure functions). Per the split doc, Person B owns the
+actual import-path swap on their own side. Nothing pending here yet; if
+either UI file ends up needing `state.js`, that's a new dependency to add
+at that time, not a swap of an existing reference.
 
 ## Zero-logic-change confirmation
 
 - `createPresetPatterns.js`: pure function, no dependency on `write`/
-  `similarity`/`injectNoise` in any form. Nothing changes regardless of what
-  Person 1 ships.
+  `similarity`/`injectNoise` in any form. Confirmed unchanged regardless of
+  what Person 1 shipped.
 - `retrieveIterative.js`: pure function, `W` passed as a plain argument.
-  Nothing changes regardless of what Person 1's `write()` returns, **provided
-  it returns a matrix in the same shape/contract** (`PATTERN_DIM x
-  PATTERN_DIM`, numeric) that `stub-write.js` currently does. See the risk
-  below for the one caveat this depends on.
+  The one caveat this used to depend on — whether the real `write()` returns
+  a matrix in the same shape/contract — is now confirmed satisfied: real
+  `write(patterns, options)` matches the contract exactly, and calling it
+  with no options is structurally identical to the classical path this
+  document originally tracked (symmetric, zero-diagonal, outer-product sum).
 
-## Known risk: stub vs. real `write()` behavioral divergence (documented, not fixed here)
+## RESOLVED: sparse/decay coverage (previously an untested gap)
 
-**Concrete, already-known gap** — `scratch/stub-write.js` (extended in Phase 2)
-implements only the classical Hebbian path when given patterns:
+Previously: `scratch/stub-write.js`'s Hebbian branch only implemented the
+classical path (no `decay`, no `sparse`), and the one test that claimed to
+cover `{sparse: true}` was a false positive — the stub declared zero real
+parameters, so the options object was silently ignored. The test passed
+while verifying nothing about sparse behavior.
 
-```
-W = Σ outer(pattern, pattern), zero diagonal
-```
+Now closed, with two new tests in `tests/retrieveIterative.test.js` against
+the **real** `write()`:
 
-It has **no decay** and **no sparsity** support.
+- `'real sparse+decay write() converges to a meaningfully accurate (not
+  necessarily exact) recovery'` — tolerant check: `converged === true` and
+  `similarity(...) >= CONFIG.PASS_THRESHOLD` (90).
+- `'sparse+decay regression baseline: locks in measured real-write()
+  behavior (clean query)'` — exact pin: with `TEST_DECAY = 0.5` and
+  `sparse: true`, measured `converged: true`, `iterationCount: 2`,
+  `similarity: 93.75`. Measured fresh on this branch (not carried over from
+  an earlier worktree check) and confirmed to match exactly.
 
-Person 1's real `write()` contract (per the split doc):
+## RESOLVED: determinism (previously conditional, now unconditional)
 
-```
-write(patterns: number[][], options?: { decay?: number, sparse?: boolean, sparsityPct?: number }): number[][]
-```
+Previously: `advanceGuidedSequence`/`startProveIt`'s determinism held only
+because the *injected* `write` happened to be deterministic — a property of
+whichever implementation was plugged in, not something enforced by this
+project's own code.
 
-- **Classical path** (no options): matches what the stub already does.
-- **Sparse path** (`sparse: true`): zeros out negative values, keeps only the
-  top `sparsityPct%` by magnitude per pattern before accumulating — stub has
-  no equivalent.
-- **Decay path** (`decay` given): `W = decay·W_prev + outer(pattern, pattern)`,
-  applied incrementally per pattern, default `CONFIG.DECAY_DEFAULT` — stub
-  has no equivalent.
+Now confirmed unconditional: the real `write()` has zero randomness in any
+code path, including the `patterns = []` edge case (`patterns.length === 0
+? CONFIG.PATTERN_DIM : patterns[0].length`, still deterministic). Reconfirmed
+against the real `write()` two ways this session: two independent manual
+`advanceGuidedSequence` sequences (deep-equal), and a full real ~60-second
+`startProveIt` run compared to a manual sequence (deep-equal at every step).
 
-`tests/retrieveIterative.test.js` currently calls
-`write([presets[0].pattern, presets[1].pattern])` with **no options argument
-at all** — so today's test suite only ever exercises the classical,
-no-decay, no-sparse path. `retrieveIterative()` itself has no knowledge of
-decay or sparsity (it only consumes whatever matrix `W` it's given), so this
-is not a bug in Person 2's code — but it is untested surface area.
+## STILL OPEN: preset-count ceiling — reconciliation not yet done
 
-**Required action at the actual Sync Point 1 re-gate (not now):** add at
-least one additional test case calling the real `write()` with `sparse:
-true` and/or a `decay` value below `1.0`, confirming `retrieveIterative()`
-still converges sensibly against a sparse or decayed matrix — not just the
-plain classical case currently covered. This is a coverage gap to close
-during re-gate, not something to speculatively build against a module that
-doesn't exist yet.
+**Not resolved by this session's work, and not claimed to be.**
+`createPresetPatterns()` still returns 9 patterns; `CONFIG.MAX_PATTERNS` is
+still 20 — both confirmed unchanged. Person 3's `sweepCapacity.js` handles
+this for its own purposes with `Math.min(maxN, patterns.length)`, dynamically
+deriving its cap from whatever `createPresetPatterns()` actually returns.
 
-### Determinism risk (verified empirically, not assumed)
+**`guidedSequence.js`'s `GUIDED_STEPS = [3, 8, 14, 20]` has not been
+reconciled the same way** — it's still a fixed array, not derived from
+`patterns.length`. This session's determinism check (3 ticks: N=3, N=8, then
+a stop) is consistent with the previously-established behavior of hitting
+the `{blocked: true, reason: 'insufficient-presets', requestedN: 14,
+availableN: 9}` state at the N=14 gate — but that exact object's fields
+were not re-printed in this session's specific run, so treat this as
+"consistent with, not independently re-confirmed field-by-field" rather
+than a fresh, complete re-verification.
 
-`advanceGuidedSequence`'s determinism — two independent calls with identical
-inputs produce deep-equal output sequences, confirmed empirically — currently
-holds **only** because the injected `write` implementation is itself
-deterministic. Confirmed: the Hebbian/non-empty-patterns branch of
-`stub-write.js` has zero randomness; only its zero-argument fallback uses
-`Math.random()`, and `advanceGuidedSequence` never reaches that branch. This
-is not something `advanceGuidedSequence` enforces on its own — it depends
-entirely on whichever `write` is injected.
+**Next actionable item:** decide whether `guidedSequence.js`/`proveItMode.js`
+should adopt the same dynamic-cap approach as `sweepCapacity.js`, or whether
+the team resolves this a different way (more presets, or revisiting
+`MAX_PATTERNS`/the checkpoint list itself). Until that decision is made and
+implemented, Prove-It's real N=20 failure-state ending remains unreachable.
 
-**Required action at the actual Sync Point 1 re-gate:** once Person 1's real
-`write.js` lands — especially if `sparse` or `decay` options introduce any
-internal randomness — this determinism guarantee needs to be re-verified,
-not assumed to carry over automatically. This matters because Phase 6's
-`proveItMode.js` gate requires Prove-It output to exactly match manual
-guided-sequence output; if a future real `write()` breaks determinism, that
-gate breaks too, silently.
+## Still open: Person B frontend
 
-## Next steps at actual Sync Point 1
+`src/ui/state.js`, `src/ui/layout.js`, `src/ui/render.js` were confirmed
+**NOT FOUND** on this branch in an earlier discovery pass, before this
+session's fast-forward to `origin/ml-integration`. **Not re-checked this
+session** — say "not re-checked," not a current status claim, until someone
+actually looks again post-fast-forward.
 
-1. Change the import on line 5-7 of `tests/retrieveIterative.test.js` from
-   `../scratch/stub-write.js` to the real `write.js` path.
-2. Run `node --test` — confirm the same pass/fail results with the real
-   `write()` in place of the stub.
-3. Add the sparse/decay convergence check described above using the real
-   `write()`'s `options` argument.
-4. If Person B's `state.js` lands and `guidedSequence.js`/`proveItMode.js`
-   get built with a dependency on it, document that swap at that time — not
-   applicable yet.
+## Still open: BDH-module.md / citations.md
+
+Correctly undone. Requires primary-source research and paper-mapping that
+hasn't happened, independent of anyone's code landing. Ownership is
+unclear since the original 4-person split's dedicated docs role was folded
+into this 3-person split. Not fabricated here or elsewhere.
