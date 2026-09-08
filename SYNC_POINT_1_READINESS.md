@@ -108,7 +108,17 @@ against the real `write()` two ways this session: two independent manual
 `advanceGuidedSequence` sequences (deep-equal), and a full real ~60-second
 `startProveIt` run compared to a manual sequence (deep-equal at every step).
 
-## RESOLVED: preset-count ceiling — genuinely resolved, not just stable
+## RESOLVED: preset-count ceiling — FINAL, accepted as-is
+
+**Accepted as final, not pending further team discussion.** Re-confirmed
+fresh against the actual files (not from memory):
+`GUIDED_STEPS = [3, 5, 7, 9]`, `PROVE_IT_INTERVAL_MS = 15000`, and all 4
+caption strings describe the real measured values below — none uses
+"collapse," "spurious attractor," or language stronger than a ~5-bit real
+error supports. **If asked why the demo's failure state looks mild rather
+than dramatic: that is the honest, accurate behavior of this exact preset
+set at N≤9 — not a bug, not a placeholder, and not something a caption
+rewrite could fix without misrepresenting the underlying data.**
 
 `createPresetPatterns()` still returns 9 patterns; `CONFIG.MAX_PATTERNS` is
 still 20 — both confirmed unchanged, and neither was touched. Person 3's
