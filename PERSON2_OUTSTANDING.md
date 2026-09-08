@@ -45,8 +45,63 @@
    ending anyway — N=9 doesn't recall worse than N=8. Option 2 sidesteps
    that trap entirely.
 
+7. **Stopgap `state.js`/`layout.js`/`render.js` shipped** (commit
+   `77f20c2`) — built because Person B's real frontend files hadn't
+   landed and `guidedSequence.js`/`proveItMode.js` had nothing to mount
+   against. Explicitly labeled non-final/throwaway in its own file
+   headers. Mounts `guidedSequence.js` and `proveItMode.js` only. Verified
+   end-to-end in a real browser: on-load default never blank, slider-driven
+   recompute through the real core pipeline, a full real ~60-second
+   `startProveIt` cycle (N=3 → N=8 → blocked) with zero console errors. One
+   real bug found and fixed during that verification: `similarityScore`
+   wasn't updating after guided-sequence-driven state updates (those
+   results carry no `similarityScore` field of their own) — fixed at the
+   `render.js` call site, not inside `state.js`.
+
+8. **Slider lock/unlock during the guided sequence — implemented and
+   verified** (commit `969a089`). Sliders and the sparse toggle disable the
+   instant a guided-sequence or Prove-It run starts and re-enable once it
+   ends (blocked or natural finish) — both set `guidedSequenceActive:
+   false`, so no separate case was needed for either ending. One real
+   timing bug caught during verification: `startProveIt`'s first tick
+   doesn't fire until `PROVE_IT_INTERVAL_MS` after the click, so locking
+   had to be set synchronously in the click handler itself, not left to
+   wait for the first tick's result — otherwise sliders would've stayed
+   unlocked for the whole first interval. Verified in a real browser via
+   the DOM `disabled` property (not just visually) for both the manual
+   "Next" flow and the automated "Watch it fail" flow, across a full real
+   ~60-second cycle.
+
 Full suite: 66/66 passing on this branch (was 64 from the merge, +2 new
 sparse/decay tests).
+
+## Explicitly NOT covered by the Phase E stopgap
+
+- **Person 1's and Person 3's features are not mounted** — `claimContract.js`,
+  `traceDebugPanel.js`, `bdhCallout.js`, `predictGate.js`,
+  `failureGallery.js`. Not confirmed as Person 2's call to make, and their
+  interfaces haven't been verified against this stopgap.
+- **`capacityCurves` is left as empty arrays** (`{classical: [], sparse: []}`)
+  — populating it would mean mounting `sweepCapacity.js` (Person 3's
+  feature), out of scope here.
+- **No styling pass** — structure and wiring only, per spec.
+
+## Flagged, not mine to fix: `write()` decay=0 edge case
+
+Read `write.js` in full and checked the stopgap decay slider's range
+bounds (0 and 1) for degenerate behavior. No NaN, no divide-by-zero (the
+function contains no division at all), no empty-matrix crash, at either
+bound — confirmed empirically, not just by reading. But at `decay: 0`,
+every pattern except the most recently processed one is completely
+discarded, not just down-weighted — confirmed empirically:
+`write([p0, p1, p2], {decay: 0})` produces a matrix identical to
+`write([p2])` alone. Mathematically correct given the documented formula
+(`decay·W_prev` term vanishes entirely each step at decay=0), not a bug,
+and not something the existing decay tests specifically pin down at this
+exact boundary. Not modifying `write.js` — not Person 2's file. Noting it
+here because the stopgap's decay slider can reach 0 and a user dragging it
+there would see the network "forget" everything but the last pattern,
+which could look broken without this context.
 
 ## Live ask to the team (not a code blocker)
 
@@ -60,12 +115,14 @@ on that answer to be considered done today.
 
 ## Still open
 
-1. **Slider lock/unlock UI.** Still blocked on Person B's real
-   `state.js`/`layout.js`/`render.js`. These were confirmed **NOT FOUND** on
-   this branch in an earlier discovery pass, before this session's
-   fast-forward to `origin/ml-integration` — **not re-checked this
-   session**, so that "not found" status is not being re-asserted as
-   current, just not yet updated.
+1. **`origin/frontend` — a possible superseding effort, status unknown.**
+   A real, separate React/Vite frontend exists on that branch (last known
+   tip: "Updated ui"), architecturally different from the
+   `state.js`/`layout.js`/`render.js` module contract this stopgap and the
+   split doc are built against. Not merged into `ml-integration`. Team has
+   been messaged; no resolution yet. Not investigated further or touched,
+   per explicit instruction — this stopgap does not assume it supersedes
+   or is superseded by that effort.
 2. **BDH-module.md / citations.md.** Still correctly undone — requires
    primary-source research and paper-mapping that hasn't happened,
    independent of anyone's code landing. Ownership is unclear since the
