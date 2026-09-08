@@ -12,6 +12,16 @@ import { similarity } from '../core/similarity.js';
 import { advanceGuidedSequence } from './features/guidedSequence.js';
 import { startProveIt } from './features/proveItMode.js';
 
+// UI-only constants (Phase F audit item 1): no CONFIG field governs slider
+// step granularity or decay's display range, so these are named here
+// rather than left as bare literals at each call site, and rather than
+// silently reusing an unrelated CONFIG field the way NOISE_MAX/MIN were
+// once misused for an unrelated purpose earlier in this project.
+const SLIDER_STEP = 1;
+const DECAY_MIN = 0;
+const DECAY_MAX = 1;
+const DECAY_STEP = 0.1;
+
 // Built ONCE, reused at all four call sites (thumbnails, query panel,
 // output panel, ground-truth panel) — per spec, not duplicated anywhere.
 export function renderPatternGrid(pattern, container) {
@@ -55,11 +65,15 @@ export function mount(root) {
   left.appendChild(thumbsContainer);
 
   // --- Middle: controls ---
-  const patternCount = makeSlider('Pattern count', CONFIG.MIN_PATTERNS, CONFIG.MAX_PATTERNS, 1, 3);
-  const noise = makeSlider('Noise %', CONFIG.NOISE_MIN, CONFIG.NOISE_MAX, 1, 10);
-  // Decay has no CONFIG-defined range (only CONFIG.DECAY_DEFAULT exists) —
-  // [0, 1] is a reasonable stopgap bound, not derived from CONFIG.
-  const decay = makeSlider('Decay', 0, 1, 0.1, CONFIG.DECAY_DEFAULT);
+  // Initial slider values read from state.js's actual current state, not a
+  // second, independently-hardcoded copy of the same defaults (Phase F
+  // audit item 1: the old (..., 1, 3) / (..., 1, 10) here duplicated
+  // state.js's DEFAULT_PATTERN_COUNT/DEFAULT_NOISE_PCT — a drift risk if
+  // either changed without the other).
+  const initial = getState();
+  const patternCount = makeSlider('Pattern count', CONFIG.MIN_PATTERNS, CONFIG.MAX_PATTERNS, SLIDER_STEP, initial.patternCount);
+  const noise = makeSlider('Noise %', CONFIG.NOISE_MIN, CONFIG.NOISE_MAX, SLIDER_STEP, initial.noisePct);
+  const decay = makeSlider('Decay', DECAY_MIN, DECAY_MAX, DECAY_STEP, initial.decayValue);
 
   const sparseLabel = document.createElement('label');
   const sparseToggle = document.createElement('input');

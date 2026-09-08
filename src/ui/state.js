@@ -10,6 +10,17 @@ import { retrieveIterative } from '../core/retrieveIterative.js';
 import { similarity } from '../core/similarity.js';
 import { injectNoise } from '../core/injectNoise.js';
 
+// On-load defaults, named rather than left as bare literals (Phase F audit
+// item 1). Not CONFIG fields on purpose: CONFIG.MIN_PATTERNS/NOISE_MIN are
+// validation bounds ("smallest allowed"), not "a good value to demo" —
+// using them here would be the same category of mistake as reusing an
+// unrelated CONFIG field for convenience, which this project has already
+// corrected once (see createPresetPatterns.js history). These mirror the
+// N=3 / 10%-noise convention already established in guidedSequence.js and
+// the test suite instead.
+const DEFAULT_PATTERN_COUNT = 3;
+const DEFAULT_NOISE_PCT = 10;
+
 const subscribers = new Set();
 let state = null;
 
@@ -73,8 +84,8 @@ export function setState(partial) {
 // automatically by the control-field recompute above, not hand-set here —
 // the page never renders blank because this call runs at import time.
 setState({
-  patternCount: 3,
-  noisePct: 10,
+  patternCount: DEFAULT_PATTERN_COUNT,
+  noisePct: DEFAULT_NOISE_PCT,
   decayValue: CONFIG.DECAY_DEFAULT,
   sparseMode: false,
   capacityCurves: { classical: [], sparse: [] },
