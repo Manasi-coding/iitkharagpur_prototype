@@ -41,3 +41,23 @@ test('steps[] is correctly ordered: first is the initial query, last is finalOut
   assert.deepStrictEqual(result.steps[0], query);
   assert.deepStrictEqual(result.steps[result.steps.length - 1], result.finalOutput);
 });
+
+test('real sparse write() produces a matrix that retrieveIterative() can use', () => {
+  const presets = createPresetPatterns();
+
+  const W = write(
+    [presets[0].pattern, presets[1].pattern],
+    { sparse: true }
+  );
+
+  const result = retrieveIterative(
+    presets[0].pattern,
+    W
+  );
+
+  assert.equal(W.length, presets[0].pattern.length);
+  assert.ok(result);
+  assert.ok(Array.isArray(result.finalOutput));
+  assert.equal(result.finalOutput.length, presets[0].pattern.length);
+  assert.ok(Number.isFinite(result.iterationCount));
+});
