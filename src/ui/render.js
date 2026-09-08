@@ -97,6 +97,12 @@ export function mount(root) {
     setState(withScore(result));
   });
   watchButton.addEventListener('click', () => {
+    // Found via the same real-browser check as the lock itself: startProveIt's
+    // first tick doesn't fire until PROVE_IT_INTERVAL_MS after this call, so
+    // without this line sliders would stay unlocked for the whole first
+    // interval — locking must happen synchronously at click time, not wait
+    // for the first result to arrive.
+    setState({ guidedSequenceActive: true });
     startProveIt(write, result => setState(withScore(result)));
   });
 
@@ -125,7 +131,20 @@ export function mount(root) {
     return wrap;
   }
 
+  // Spec 3.4/4.2: sliders stay disabled until the sequence completes. Locks
+  // on guidedSequenceActive === true and re-enables on false, whether that
+  // false comes from a natural finish or the blocked-state ending — both
+  // set guidedSequenceActive: false, so no separate case is needed here.
+  function setControlsDisabled(disabled) {
+    patternCount.input.disabled = disabled;
+    noise.input.disabled = disabled;
+    decay.input.disabled = disabled;
+    sparseToggle.disabled = disabled;
+  }
+
   function renderAll(state) {
+    setControlsDisabled(state.guidedSequenceActive === true);
+
     thumbsContainer.innerHTML = '';
     for (const preset of state.storedPatterns) {
       const cell = document.createElement('div');
