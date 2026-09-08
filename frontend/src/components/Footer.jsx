@@ -1,0 +1,1 @@
+export default function Footer() { return <footer><span><b>Computational Neurobiology Lab</b> • Synaptic Plasticity & Hebbian Associative Memory Matrix • <em>Cartesian Precision: 32-bit Float</em> • <strong>Engine Synced</strong></span><span>⌘ Documentation　&lt;/&gt; GitHub</span></footer>; }
