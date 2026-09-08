@@ -1,0 +1,1 @@
+export default function PanelCard({ title, icon = '◈', children, className = '' }) { return <section className={`panel ${className}`}><div className="panel-title"><span>{icon}</span><h2>{title}</h2></div>{children}</section>; }
