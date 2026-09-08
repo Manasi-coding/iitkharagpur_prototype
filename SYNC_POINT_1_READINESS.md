@@ -108,29 +108,39 @@ against the real `write()` two ways this session: two independent manual
 `advanceGuidedSequence` sequences (deep-equal), and a full real ~60-second
 `startProveIt` run compared to a manual sequence (deep-equal at every step).
 
-## STILL OPEN: preset-count ceiling — reconciliation not yet done
+## RESOLVED: preset-count ceiling — genuinely resolved, not just stable
 
-**Not resolved by this session's work, and not claimed to be.**
 `createPresetPatterns()` still returns 9 patterns; `CONFIG.MAX_PATTERNS` is
-still 20 — both confirmed unchanged. Person 3's `sweepCapacity.js` handles
-this for its own purposes with `Math.min(maxN, patterns.length)`, dynamically
-deriving its cap from whatever `createPresetPatterns()` actually returns.
+still 20 — both confirmed unchanged, and neither was touched. Person 3's
+`sweepCapacity.js` still handles this for its own purposes with
+`Math.min(maxN, patterns.length)`.
 
-**`guidedSequence.js`'s `GUIDED_STEPS = [3, 8, 14, 20]` has not been
-reconciled the same way** — it's still a fixed array, not derived from
-`patterns.length`. This session's determinism check (3 ticks: N=3, N=8, then
-a stop) is consistent with the previously-established behavior of hitting
-the `{blocked: true, reason: 'insufficient-presets', requestedN: 14,
-availableN: 9}` state at the N=14 gate — but that exact object's fields
-were not re-printed in this session's specific run, so treat this as
-"consistent with, not independently re-confirmed field-by-field" rather
-than a fresh, complete re-verification.
+**`guidedSequence.js`'s `GUIDED_STEPS` was lowered from `[3, 8, 14, 20]` to
+`[3, 5, 7, 9]`** to fit the actual 9 available presets —
+`createPresetPatterns.js`/its `SHAPES` array were not touched; the
+checkpoint list adapted to the data, not the other way around. Chosen from
+real measurements across every N from 1 to 9 (real `write()`, real
+`similarity()`): N=1-3 recover exactly (100%); degradation appears at N=4
+and holds flat through N=7 (92.19%, tied — a real, non-monotonic feature of
+these correlation-controlled shapes, not a smooth capacity curve); N=8-9
+partially recover (96.875%). `[3, 5, 7, 9]` reaches the actual maximum
+available preset count as the final checkpoint, at the cost of that final
+point being real degradation rather than the single worst measured point
+(N=4-7). **Honest caveat, not glossed over:** even the worst measured point
+is a modest ~5-bit error out of 64, not a dramatic spurious-output collapse
+— lowering the checkpoints produces a real ending, not a dramatic one.
 
-**Next actionable item:** decide whether `guidedSequence.js`/`proveItMode.js`
-should adopt the same dynamic-cap approach as `sweepCapacity.js`, or whether
-the team resolves this a different way (more presets, or revisiting
-`MAX_PATTERNS`/the checkpoint list itself). Until that decision is made and
-implemented, Prove-It's real N=20 failure-state ending remains unreachable.
+All 4 checkpoints now reach a real result. The `{blocked: true,
+reason: 'insufficient-presets', ...}` state is no longer expected to occur
+in normal operation — kept in `guidedSequence.js` as a safety net against
+future drift (e.g. presets ever dropping below 9), not deleted.
+`PROVE_IT_INTERVAL_MS` was recomputed from `20000` to `15000` (60s / 4
+reachable ticks, was 60s / 3) — left unchanged, a full Prove-It run would
+have silently taken 80 real seconds instead of 60. Verified end-to-end: a
+full real ~60-second `startProveIt` run against manual calls, deep-equal at
+every step, zero blocked state anywhere in the run. Captions rewritten to
+match real measured values at each new checkpoint, not old text with
+numbers swapped in.
 
 ## Still open: Person B frontend
 

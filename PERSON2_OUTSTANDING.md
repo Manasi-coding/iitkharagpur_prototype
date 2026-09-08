@@ -43,7 +43,9 @@
    (100% / 92.19% / 96.875% / 96.875%) showed that shrinking the checkpoint
    list to fit 9 presets (Option 1) wouldn't have produced a stronger
    ending anyway — N=9 doesn't recall worse than N=8. Option 2 sidesteps
-   that trap entirely.
+   that trap entirely. **Superseded by item 11 below** — Option 2 was the
+   right call given the constraint at the time; the constraint itself is
+   now actually removed, not just reframed.
 
 7. **Stopgap `state.js`/`layout.js`/`render.js` shipped** (commit
    `77f20c2`) — built because Person B's real frontend files hadn't
@@ -99,6 +101,34 @@
     actual timed read — `state.js`'s script has the least margin of the
     three and is the one to actually time first if that matters.
 
+11. **Preset-count gap — genuinely resolved, not just stable** (this
+    commit). `GUIDED_STEPS` lowered from `[3, 8, 14, 20]` to `[3, 5, 7, 9]`
+    to fit the actual 9 presets — `createPresetPatterns.js`/`SHAPES`
+    untouched, checkpoints adapted to the data. Chosen from real
+    measurements across every N=1-9 (real `write()`, real `similarity()`):
+    exact recovery at N=1-3, degradation appears at N=4 and holds flat
+    through N=7 (92.19%, tied — non-monotonic, a real feature of these
+    correlation-controlled shapes), partial recovery at N=8-9 (96.875%).
+    `[3, 5, 7, 9]` reaches the true maximum preset count as the final
+    checkpoint, honestly not the single worst measured point (that's
+    N=4-7). **Not glossed over:** even the worst point is a modest ~5-bit
+    error, not a dramatic collapse — this closes the gap with a real
+    ending, not a dramatic one. All 4 checkpoints now reach a real result;
+    the blocked state is no longer expected in normal operation (kept as a
+    safety net in `guidedSequence.js`, not deleted). `PROVE_IT_INTERVAL_MS`
+    recomputed `20000` → `15000` (60s / 4 ticks, was 60s / 3) — left
+    unchanged, a run would have silently taken 80 real seconds instead of
+    60. `proveItMode.js`'s `CLEAN_RECALL_N`/`NEAR_LIMIT_N` pair extended to
+    four constants (`CLEAN_RECALL_N`, `MID_RANGE_N`, `NEAR_LIMIT_N`,
+    `FINAL_N`); the duplicated-constants fragility itself (not derived from
+    `GUIDED_STEPS`) remains, flagged again, not fixed — out of scope here.
+    Captions rewritten to match real measured values, not old text with
+    numbers swapped in. Verified end-to-end: full real ~60s `startProveIt`
+    run vs. manual, deep-equal at every step, zero blocked state anywhere
+    in the run. No stale tests existed to update — confirmed by search,
+    no permanent test ever referenced `GUIDED_STEPS` or these checkpoint
+    values.
+
 Full suite: 66/66 passing on this branch (was 64 from the merge, +2 new
 sparse/decay tests).
 
@@ -134,11 +164,12 @@ which could look broken without this context.
 
 **Option 3 (add more presets) was sent to the team as a parallel, still-open
 ask** — distinct from the items below, since there is nothing further for
-Person 2 to do on this unilaterally. Option 2 above is the interim
-resolution already shipped in code regardless of how this ask resolves; if
-the team adds more presets later, `GUIDED_STEPS` can be restored to its
-original `[3, 8, 14, 20]` shape at that time, but nothing here is waiting
-on that answer to be considered done today.
+Person 2 to do on this unilaterally. `GUIDED_STEPS` is now `[3, 5, 7, 9]`
+(item 11) regardless of how this ask resolves — that's a real, working
+resolution on its own, not a placeholder waiting on the team's answer. If
+the team adds more presets later, `GUIDED_STEPS` could be revisited again
+to reach further/more dramatic checkpoints, but nothing here is blocked on
+that happening.
 
 ## Still open
 

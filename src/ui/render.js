@@ -1,9 +1,11 @@
 // STOPGAP — see state.js header. Structure and wiring only, no styling
-// polish, per spec. Mounts guidedSequence.js and proveItMode.js ONLY —
-// deliberately does not mount claimContract.js/traceDebugPanel.js/
-// bdhCallout.js/predictGate.js/failureGallery.js (Person 1/3's features;
-// not confirmed as Person 2's call, interfaces not verified against this
-// stopgap).
+// polish, per spec. Mounts guidedSequence.js and proveItMode.js, plus a
+// render loop for Person 3's failureGallery.js data (see
+// renderFailureGallery below — failureGallery.js itself is read-only here,
+// not modified). Still deliberately does not mount claimContract.js/
+// traceDebugPanel.js/bdhCallout.js/predictGate.js (Person 1/3's other
+// features; not confirmed as Person 2's call, interfaces not verified
+// against this stopgap).
 import { CONFIG } from '../config.js';
 import { getState, setState, subscribe } from './state.js';
 import { buildLayout } from './layout.js';
@@ -11,6 +13,7 @@ import { write } from '../core/write.js';
 import { similarity } from '../core/similarity.js';
 import { advanceGuidedSequence } from './features/guidedSequence.js';
 import { startProveIt } from './features/proveItMode.js';
+import { getFailureGallery } from './features/failureGallery.js';
 
 // UI-only constants (Phase F audit item 1): no CONFIG field governs slider
 // step granularity or decay's display range, so these are named here
@@ -40,6 +43,35 @@ export function renderPatternGrid(pattern, container) {
     grid.appendChild(cell);
   }
   container.appendChild(grid);
+}
+
+// Consumes Person 3's getFailureGallery() (read-only — failureGallery.js
+// itself is untouched). No render loop existed for this data anywhere in
+// the app before this. Deliberately no state.js dependency: this data is
+// static/precomputed, never changes, so it's rendered once at startup, not
+// wired through subscribe/setState like the reactive panels above.
+//
+// The [PRECOMPUTED] label is rendered as its own visible text node ahead
+// of the title — a hard requirement (checklist item 5, and the PS's
+// "labeled in UI, not just filenames"), not a data attribute or alt text,
+// so it can't be missed or hidden by accident.
+export function renderFailureGallery(container) {
+  container.innerHTML = '';
+  for (const failure of getFailureGallery()) {
+    const item = document.createElement('div');
+
+    const label = document.createElement('span');
+    label.textContent = failure.label;
+
+    const title = document.createElement('strong');
+    title.textContent = failure.title;
+
+    const description = document.createElement('div');
+    description.textContent = failure.description;
+
+    item.append(label, ' ', title, description);
+    container.appendChild(item);
+  }
 }
 
 function makeSlider(labelText, min, max, step, value) {

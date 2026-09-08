@@ -9,10 +9,24 @@ import { CONFIG } from '../../config.js';
 import { createPresetPatterns } from '../../core/createPresetPatterns.js';
 import { retrieveIterative } from '../../core/retrieveIterative.js';
 
-// Fixed pedagogical checkpoints from the split doc — not tunable config, so
-// not part of CONFIG, same treatment as CORRELATION_THRESHOLD in Phase 1.
-// Confirmed with Person 2 (the "3/8/14/20 vs. zero-literal-rule" tension).
-const GUIDED_STEPS = [3, 8, 14, 20];
+// Fixed pedagogical checkpoints — not tunable config, so not part of
+// CONFIG, same treatment as CORRELATION_THRESHOLD in Phase 1.
+//
+// Lowered from the split doc's original [3, 8, 14, 20] to fit the actual
+// 9 available presets (createPresetPatterns.js stays untouched — this is
+// the checkpoint list adapting to the data, not the other way around).
+// Chosen from real measurements across every N from 1 to 9 (real write(),
+// real similarity(), this file's own probe/noise convention), not
+// guessed: N=1-3 all recover exactly (100%); degradation appears at N=4
+// and stays flat through N=7 (92.19%, tied — not a smooth capacity
+// curve, a real feature of these correlation-controlled shapes, not
+// random patterns); N=8-9 partially recover (96.875%). [3, 5, 7, 9] was
+// picked over ending at the literal worst point (N=7, 92.19%) so the
+// sequence still reaches the actual maximum available preset count —
+// the honest tradeoff is that the final checkpoint is real degradation
+// (96.875%, not exact) but not the single worst measured point.
+// Confirmed with Person 2.
+const GUIDED_STEPS = [3, 5, 7, 9];
 
 if (Math.max(...GUIDED_STEPS) > CONFIG.MAX_PATTERNS) {
   throw new Error(
@@ -34,10 +48,12 @@ function nextCheckpoint(lastN) {
 
 // Revisited at Phase 5 close-out: the whole point of the guided sequence is
 // to VISIBLY demonstrate degradation across checkpoints. Empirically, a
-// clean (zero-noise) query showed identical perfect recovery at N=3 and
-// N=8 — no visible difference across the currently-reachable range. A 10%
-// noised query showed a real transition (full correction at N=3, partial
-// at N=8) over the same range. Chosen for that reason, not just theory.
+// clean (zero-noise) query showed identical perfect recovery across the
+// then-reachable checkpoints — no visible difference at all. A 10% noised
+// query showed a real transition instead. Chosen for that reason, not just
+// theory; this decision doesn't depend on the exact checkpoint values
+// above and wasn't re-litigated when GUIDED_STEPS was later lowered to fit
+// the actual preset count.
 //
 // Deliberately NOT a stub-injectNoise.js: this is a tiny, fixed-fraction
 // bit flip, not an attempt to replicate whatever richer contract Person 1's
@@ -72,16 +88,16 @@ export function advanceGuidedSequence(guidedStepIndex, write) {
 
   const allPresets = createPresetPatterns();
   if (nextN > allPresets.length) {
-    // Revisited at Phase 5 close-out: changed from throw to a graceful
-    // blocked state. This does NOT fix the underlying preset shortage —
-    // checkpoints 14/20 still cannot run, and Phase 6 still cannot reach
-    // the N=20 ending until the team resolves that data gap — but a
-    // defined, non-throwing return lets a setInterval-driven caller
-    // (proveItMode.js) render an honest "blocked" state instead of
-    // crashing on an uncaught exception. guidedStepIndex is deliberately
-    // omitted (not reset) so a repeated call with the same input is
-    // idempotent: it keeps returning this same blocked state rather than
-    // erroring or drifting.
+    // Not expected to trigger in normal operation anymore: GUIDED_STEPS'
+    // max (9) now matches the actual preset count exactly, so this branch
+    // is a safety net against future drift (e.g. presets ever dropping
+    // below 9), not an active, expected path the way it was when
+    // GUIDED_STEPS still went up to 20. Left in place rather than removed
+    // — the graceful-return behavior (non-throwing, idempotent on repeat
+    // calls) is still correct defensive design regardless of whether it
+    // currently fires. guidedStepIndex is deliberately omitted (not reset)
+    // so a repeated call with the same input stays idempotent rather than
+    // erroring or drifting, if this branch is ever actually reached.
     return {
       guidedSequenceActive: false,
       blocked: true,

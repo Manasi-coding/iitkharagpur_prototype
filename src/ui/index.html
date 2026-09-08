@@ -3,9 +3,11 @@
 <head><meta charset="utf-8"><title>DataForge — stopgap UI</title></head>
 <body>
 <div id="root"></div>
+<div id="failure-gallery"></div>
 <script type="module">
-  import { mount } from './render.js';
+  import { mount, renderFailureGallery } from './render.js';
   mount(document.getElementById('root'));
+  renderFailureGallery(document.getElementById('failure-gallery'));
 </script>
 </body>
 </html>

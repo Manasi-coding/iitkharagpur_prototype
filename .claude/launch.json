@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stopgap-ui",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scratch/static-server.js"],
+      "port": 5173
+    }
+  ]
+}
