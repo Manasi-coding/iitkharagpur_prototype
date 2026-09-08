@@ -1,3 +1,41 @@
-import { NavLink } from 'react-router-dom';
-const links = [['/', 'Demo'], ['/bdh', 'BDH Deep Dive'], ['/about', 'About & Sources']];
-export default function NavBar() { return <header className="nav"><div className="brand"><div className="brand-mark">∿</div><span>Hebbian Synapse Lab</span><small>v2.4-hebbian-sparse</small></div><nav>{links.map(([to,label]) => <NavLink key={to} to={to} end={to === '/'}>{label}</NavLink>)}</nav><div className="nav-status"><i /> EMPIRICAL STATUS: VERIFIED <span>PARAMS: N=64 | P_CRIT ≈ 9</span></div></header>; }
+import { Link, useNavigate } from 'react-router-dom';
+
+export default function Navbar({ user, onLogout }) {
+  const navigate = useNavigate();
+
+  return (
+    <header className="landing-navbar">
+      <div className="nav-container">
+        <Link to="/" className="brand-logo">
+          <span className="brand-icon">∿</span>
+          <span className="brand-name">Hebbian Synapse Lab</span>
+        </Link>
+        <div className="nav-actions">
+          {user ? (
+            <>
+              <span className="user-welcome">Hello, <b>{user.name || user.email}</b></span>
+              <button 
+                onClick={() => navigate('/demo')} 
+                className="btn-demo"
+              >
+                Launch Demo
+              </button>
+              <button 
+                onClick={onLogout} 
+                className="btn-logout"
+              >
+                Log Out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="nav-link">Log In</Link>
+              <Link to="/signup" className="nav-link btn-signup">Sign Up</Link>
+              <Link to="/demo" className="btn-demo">Try the Demo</Link>
+            </>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
