@@ -398,12 +398,20 @@ export default function DemoPage() {
             <div className="chart-container">
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={chartData}>
-                  <XAxis dataKey="n" stroke="#64748b" />
-                  <YAxis domain={[0, 100]} stroke="#64748b" />
-                  <Tooltip contentStyle={{ background: '#0f172a', borderColor: '#334155' }} />
+                  <XAxis dataKey="n" stroke="var(--light-text-muted)" />
+                  <YAxis domain={[0, 100]} stroke="var(--light-text-muted)" />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--light-card-bg)',
+                      borderColor: 'var(--light-border)',
+                      color: 'var(--light-text-primary)',
+                    }}
+                  />
                   <Legend />
+                  {/* Classical keeps the soft-amber accent per the theme's "amber only for the
+                      Classical comparison value" rule; Sparse (BDH) uses the shared teal token. */}
                   <Line dataKey="classical" stroke="#f59e0b" strokeWidth={2} dot name="Classical Hebbian" />
-                  <Line dataKey="sparse" stroke="#0284c7" strokeWidth={2} dot name="BDH Sparse" />
+                  <Line dataKey="sparse" stroke="var(--teal-primary)" strokeWidth={2} dot name="BDH Sparse" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
