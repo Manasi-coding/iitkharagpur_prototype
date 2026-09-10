@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sweepCapacity } from '../src/core/sweepCapacity.js';
 import { findCrossover } from '../src/core/findCrossover.js';
@@ -275,4 +275,26 @@ test('PIPELINE GATE: sparse crossover N is strictly greater than classical cross
       '  (This is a pipeline test only — not an empirical real-world capacity claim.)',
     ].join('\n')
   );
+});
+
+// ---------------------------------------------------------------------------
+// Test 7: decay flows through to write()
+// ---------------------------------------------------------------------------
+test('decay parameter flows through to write()', () => {
+  const patterns = createPresetPatterns().slice(0, 2);
+  let capturedOptions = null;
+
+  function capturingWrite(patternVectors, options) {
+    capturedOptions = options;
+    return dummyWrite(patternVectors, options);
+  }
+
+  sweepCapacity(
+    patterns,
+    { sparse: false, decay: 0.5, noisePct: 0, maxN: 2 },
+    { write: capturingWrite, retrieveIterative: passthroughRetrieve }
+  );
+
+  assert.ok(capturedOptions, 'write() was not called');
+  assert.equal(capturedOptions.decay, 0.5, 'decay parameter was not forwarded correctly');
 });

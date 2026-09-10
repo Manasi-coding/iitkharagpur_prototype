@@ -1,4 +1,4 @@
-﻿// Phase person3/sweep-crossover-bdh — Person 3.
+// Phase person3/sweep-crossover-bdh — Person 3.
 // Pure function (no side effects, no module-level mutable state).
 // Reports empirical curves only; no theoretical capacity formula.
 //
@@ -50,10 +50,11 @@ function defaultComputeSimilarity(original, retrieved) {
  * @param {Array<{ id: string, pattern: number[] }>} patterns
  *   Preset patterns as returned by createPresetPatterns(). Not mutated.
  *
- * @param {{ sparse: boolean, noisePct: number, maxN: number }} options
- *   sparse   — forwarded verbatim to deps.write(patternVectors, { sparse }).
+ * @param {{ sparse: boolean, decay?: number, noisePct: number, maxN: number }} options
+ *   sparse   — forwarded verbatim to deps.write(patternVectors, { sparse, decay }).
  *              This file does NOT interpret or act on sparse; that is entirely
  *              write()'s responsibility.
+ *   decay    — forwarded verbatim to deps.write(patternVectors, { sparse, decay }).
  *   noisePct — 0-100. Approximate percentage of pattern elements flipped per
  *              noisy query, using the same scale as CONFIG.NOISE_MIN/NOISE_MAX.
  *   maxN     — Upper bound for the sweep. Silently capped to patterns.length
@@ -75,7 +76,7 @@ function defaultComputeSimilarity(original, retrieved) {
  *   One entry per n from 1 to effectiveMaxN. avgSimilarity is on the 0-100
  *   scale matching CONFIG.PASS_THRESHOLD.
  */
-export function sweepCapacity(patterns, { sparse, noisePct, maxN }, deps = {}) {
+export function sweepCapacity(patterns, { sparse, decay = 1.0, noisePct, maxN }, deps = {}) {
   const {
     write,
     retrieveIterative: retrieve = defaultRetrieve,
@@ -97,8 +98,8 @@ export function sweepCapacity(patterns, { sparse, noisePct, maxN }, deps = {}) {
     const subset = patterns.slice(0, n);
     const patternVectors = subset.map(({ pattern }) => pattern);
 
-    // sparse is forwarded here verbatim — write() decides what it means.
-    const W = write(patternVectors, { sparse });
+    // sparse and decay are forwarded here verbatim — write() decides what it means.
+    const W = write(patternVectors, { sparse, decay });
 
     // Probe every stored pattern; compare retrieval output to the clean original.
     let totalSimilarity = 0;

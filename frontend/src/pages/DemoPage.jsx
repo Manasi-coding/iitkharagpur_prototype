@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, ReferenceLine } from 'recharts';
 import ClaimBadge from '../components/ClaimBadge';
 import PanelCard from '../components/PanelCard';
 import FooterCard from '../components/Footer';
 import PatternGrid from '../components/PatternGrid';
+import InterferenceMap from '../components/InterferenceMap';
+import NavTabs from '../components/NavTabs';
 
 import { CONFIG } from '../../../src/config.js';
 import { createPresetPatterns } from '../../../src/core/createPresetPatterns.js';
@@ -19,6 +21,8 @@ import { buildRetrievalTrace } from '../../../src/ui/features/traceDebugPanel.js
 import { buildBdhCallout } from '../../../src/ui/features/bdhCallout.js';
 import { submitPrediction } from '../../../src/ui/features/predictGate.js';
 import { renderClaimHeader } from '../../../src/ui/features/claimContract.js';
+import { optimizeMemory } from '../../../src/core/optimizeMemory.js';
+import { findCrossover } from '../../../src/core/findCrossover.js';
 
 // createPresetPatterns.js only ships 9 shapes even though CONFIG.MAX_PATTERNS
 // is 20 — cap every pattern-count control at whichever is smaller, mirroring
@@ -34,14 +38,20 @@ const DECAY_MIN = 0;
 const DECAY_MAX = 1;
 const DECAY_STEP = 0.1;
 
-const CONTROL_FIELDS = ['patternCount', 'noisePct', 'decayValue', 'sparseMode'];
+// Exported for App.jsx to use in the lifted-state updateSession closure.
+export const CONTROL_FIELDS = ['patternCount', 'noisePct', 'decayValue', 'sparseMode', 'customStoredPatterns'];
 
 // Same derivation the reference src/ui/state.js performs: recompute the
 // stored patterns / query / retrieval / score from the current control
 // values by calling the real core pipeline end to end.
-function deriveFromControls(current) {
+export function deriveFromControls(current) {
   const allPresets = createPresetPatterns();
-  const storedPatterns = allPresets.filter((_, index) => index < current.patternCount);
+  let storedPatterns;
+  if (current.customStoredPatterns) {
+    storedPatterns = current.customStoredPatterns;
+  } else {
+    storedPatterns = allPresets.filter((_, index) => index < current.patternCount);
+  }
   const [basePreset] = storedPatterns.length > 0 ? storedPatterns : allPresets;
 
   const currentQuery = injectNoise(basePreset.pattern, current.noisePct);
@@ -58,13 +68,13 @@ function deriveFromControls(current) {
 // guidedSequence.js / proveItMode.js results don't include a similarityScore
 // field — fill it in at the call site against that same result's own ground
 // truth, same as the reference render.js's withScore().
-function withScore(result) {
+export function withScore(result) {
   if (!result.retrievalResult || !result.storedPatterns) return result;
   const [groundTruth] = result.storedPatterns;
   return { ...result, similarityScore: similarity(result.retrievalResult.finalOutput, groundTruth.pattern) };
 }
 
-function buildInitialSession() {
+export function buildInitialSession() {
   const controls = {
     patternCount: DEFAULT_PATTERN_COUNT,
     noisePct: DEFAULT_NOISE_PCT,
@@ -72,44 +82,68 @@ function buildInitialSession() {
     sparseMode: false,
     guidedSequenceActive: false,
     guidedStepIndex: null,
+    customStoredPatterns: null,
   };
   return { ...controls, ...deriveFromControls(controls) };
 }
 
-export default function DemoPage() {
-  const [session, setSession] = useState(buildInitialSession);
+// ---------------------------------------------------------------------------
+// DemoPage — now accepts session and session-mutation callbacks as props.
+// All existing logic, handlers, and JSX are behaviorally identical.
+// The only structural change is: session lives in App.jsx; DemoPage reads
+// it via props and fires callbacks instead of calling setSession directly
+// for the handlers that were already stateless relative to session
+// (optimizer, replay, guessInput, trace, predictGate).
+// ---------------------------------------------------------------------------
+export default function DemoPage({
+  session,
+  updateSession,
+  proveItRunning,
+  setProveItRunning,
+}) {
   const [trace, setTrace] = useState(true);
-  const [proveItRunning, setProveItRunning] = useState(false);
   const proveItRef = useRef(null);
 
   const [guessInput, setGuessInput] = useState('');
   const [predictGate, setPredictGate] = useState({ revealed: false, guess: null, measuredCrossover: null, delta: null });
 
-  // Same merge semantics as the reference state.js setState(): control-field
-  // changes trigger a fresh real-pipeline recompute; a caller-supplied
-  // retrievalResult (guided sequence / Prove It) is trusted as-is instead.
-  const updateSession = useCallback((partial) => {
-    setSession((prev) => {
-      const next = { ...prev, ...partial };
-      const touchesControls = CONTROL_FIELDS.some((field) => field in partial);
-      const callerSuppliedResult = 'retrievalResult' in partial;
-      if (touchesControls && !callerSuppliedResult) {
-        Object.assign(next, deriveFromControls(next));
-      }
-      return next;
-    });
-  }, []);
+  const [optimizerState, setOptimizerState] = useState({ optimizing: false, recommendation: null });
+  const [replayState, setReplayState] = useState({ isReplaying: false, stepIndex: -1 });
 
+  const handleReplay = useCallback(() => {
+    if (replayState.isReplaying) return;
+    setReplayState({ isReplaying: true, stepIndex: -1 }); // Start with query
+    
+    const maxSteps = session.retrievalResult.steps.length;
+    let currentStep = -1;
+    
+    const interval = setInterval(() => {
+      currentStep++;
+      if (currentStep >= maxSteps) {
+        clearInterval(interval);
+        setTimeout(() => setReplayState({ isReplaying: false, stepIndex: -1 }), 1500); // Hold final state briefly
+      } else {
+        setReplayState({ isReplaying: true, stepIndex: currentStep });
+      }
+    }, 600);
+  }, [session.retrievalResult.steps, replayState.isReplaying]);
+
+  const currentRetrievalStepPattern = useMemo(() => {
+    if (!replayState.isReplaying) return null;
+    if (replayState.stepIndex === -1) return session.currentQuery;
+    if (replayState.stepIndex < session.retrievalResult.steps.length) {
+      return session.retrievalResult.steps[replayState.stepIndex];
+    }
+    return session.retrievalResult.finalOutput;
+  }, [replayState, session.currentQuery, session.retrievalResult]);
+
+  // Same handlers as original — operate on session via updateSession prop.
   const handleNext = useCallback(() => {
     const result = advanceGuidedSequence(session.guidedStepIndex, write);
     updateSession(withScore(result));
   }, [session.guidedStepIndex, updateSession]);
 
   const handleProveIt = useCallback(() => {
-    // Must lock synchronously at click time — startProveIt's first tick
-    // doesn't fire until PROVE_IT_INTERVAL_MS later, so waiting for the
-    // first onStep result would leave sliders unlocked for the whole
-    // first interval.
     updateSession({ guidedSequenceActive: true });
     setProveItRunning(true);
     proveItRef.current = startProveIt(write, (result) => {
@@ -118,7 +152,32 @@ export default function DemoPage() {
         setProveItRunning(false);
       }
     });
-  }, [updateSession]);
+  }, [updateSession, setProveItRunning]);
+
+  const handleOptimizeMemory = useCallback(() => {
+    setOptimizerState({ optimizing: true, recommendation: null });
+    setTimeout(() => {
+      const [groundTruth] = session.storedPatterns;
+      if (!groundTruth) {
+        setOptimizerState({ optimizing: false, recommendation: null });
+        return;
+      }
+      const rec = optimizeMemory(
+        session.storedPatterns,
+        session.currentQuery,
+        groundTruth.pattern,
+        { sparse: session.sparseMode, decay: session.decayValue }
+      );
+      setOptimizerState({ optimizing: false, recommendation: rec });
+    }, 10);
+  }, [session.storedPatterns, session.currentQuery, session.sparseMode, session.decayValue]);
+
+  const handleApplyRecommendation = useCallback(() => {
+    if (!optimizerState.recommendation) return;
+    const newPatterns = session.storedPatterns.filter((_, i) => i !== optimizerState.recommendation.recommendedIndex);
+    updateSession({ customStoredPatterns: newPatterns });
+    setOptimizerState({ optimizing: false, recommendation: null });
+  }, [optimizerState.recommendation, session.storedPatterns, updateSession]);
 
   // Real empirical capacity curves (classical vs sparse/BDH), computed live
   // against the current noise level via src/core/sweepCapacity.js — replaces
@@ -145,6 +204,53 @@ export default function DemoPage() {
   );
 
   const bdhCallout = useMemo(() => buildBdhCallout(capacityCurves, CONFIG.PASS_THRESHOLD), [capacityCurves]);
+
+  const predictiveForecast = useMemo(() => {
+    const allPresets = createPresetPatterns();
+    const options = { 
+      sparse: session.sparseMode, 
+      decay: session.decayValue, 
+      noisePct: session.noisePct, 
+      maxN: MAX_PATTERN_COUNT 
+    };
+    const sweepData = sweepCapacity(allPresets, options, { write });
+    
+    // findCrossover returns the FIRST pattern count where avgSimilarity < CONFIG.PASS_THRESHOLD
+    const crossover = findCrossover(sweepData, CONFIG.PASS_THRESHOLD);
+    
+    let status = '';
+    let safeCapacity = 0;
+    
+    if (crossover === 0) { // NO FAILURE OBSERVED inside the tested range
+       status = 'SAFE / NO FAILURE OBSERVED';
+       safeCapacity = MAX_PATTERN_COUNT;
+    } else {
+       safeCapacity = crossover - 1;
+       if (session.patternCount < safeCapacity) {
+          status = 'SAFE';
+       } else if (session.patternCount === safeCapacity) {
+          status = 'NEAR CAPACITY';
+       } else {
+          status = 'OVER CAPACITY';
+       }
+    }
+    
+    const remainingMargin = Math.max(0, safeCapacity - session.patternCount);
+
+    const chartData = sweepData.map(point => ({
+      n: point.n,
+      similarity: Math.round(point.avgSimilarity * 100) / 100,
+    }));
+
+    return {
+      sweepData,
+      chartData,
+      crossover,
+      safeCapacity,
+      status,
+      remainingMargin
+    };
+  }, [session.sparseMode, session.decayValue, session.noisePct, session.patternCount]);
 
   // claimContract.js's claim text (PLACEHOLDER_CLAIM) is still an
   // unresolved, unowned team decision (see README_PHASE0.md) — read it from
@@ -177,6 +283,8 @@ export default function DemoPage() {
 
   return (
     <div className="main-wrapper">
+      <NavTabs />
+
       {/* Permanent visible caps note — real CONFIG values, not hardcoded */}
       <div className="caps-note">
         <span>
@@ -287,6 +395,49 @@ export default function DemoPage() {
           </div>
         </PanelCard>
 
+        {/* Adaptive Memory Management Panel */}
+        <PanelCard title="Adaptive Memory Management" icon="⛭">
+          <p className="caption-line">Identify interference. Optimize retention. Verify recovery.</p>
+          <div className="optimizer-content">
+             <div className="similarity-section">
+                <span className="sim-label">Current Similarity</span>
+                <span className="sim-val">{session.similarityScore.toFixed(1)}%</span>
+             </div>
+             {optimizerState.recommendation ? (
+               <div className="recommendation-results" style={{ marginTop: '1rem' }}>
+                 <p>Recommended pattern to remove: <b>{optimizerState.recommendation.recommendedPattern.id}</b></p>
+                 <p>Before → After similarity: {session.similarityScore.toFixed(1)}% → {optimizerState.recommendation.improvedSimilarity.toFixed(1)}%</p>
+                 <p>Improvement: {(optimizerState.recommendation.improvedSimilarity - session.similarityScore).toFixed(1)}%</p>
+                 <p className="caption-line">Removing {optimizerState.recommendation.recommendedPattern.id} produced the highest measured retrieval similarity.</p>
+                 <div className="button-row" style={{ marginTop: '1rem' }}>
+                   <button onClick={handleApplyRecommendation}>APPLY RECOMMENDATION</button>
+                 </div>
+               </div>
+             ) : (
+               <div className="button-row" style={{ marginTop: '1rem' }}>
+                  <button onClick={handleOptimizeMemory} disabled={locked || session.storedPatterns.length <= 1}>
+                    {optimizerState.optimizing ? 'Calculating...' : 'OPTIMIZE MEMORY'}
+                  </button>
+               </div>
+             )}
+          </div>
+        </PanelCard>
+
+        {/* Live Memory Interference Map */}
+        <PanelCard title="Live Memory Interference Map" icon="⬡">
+          <p className="caption-line">Visualize pairwise pattern similarity. Replay retrieval to see network activation.</p>
+          <InterferenceMap 
+            patterns={session.storedPatterns} 
+            currentRetrievalStepPattern={currentRetrievalStepPattern}
+            isReplaying={replayState.isReplaying}
+          />
+          <div className="button-row" style={{ marginTop: '1rem', justifyContent: 'center' }}>
+            <button onClick={handleReplay} disabled={replayState.isReplaying || locked}>
+              {replayState.isReplaying ? 'Replaying...' : 'Replay Retrieval'}
+            </button>
+          </div>
+        </PanelCard>
+
         {/* 4. Query / Retrieval / Truth panel */}
         <PanelCard title="Query → Retrieval → Truth" icon="◉">
           <div className="retrieval-container">
@@ -326,6 +477,79 @@ export default function DemoPage() {
           <div className="similarity-section">
             <span className="sim-label">Similarity Score</span>
             <span className="sim-val">{session.similarityScore.toFixed(1)}%</span>
+          </div>
+        </PanelCard>
+      </div>
+
+      {/* Predictive Capacity Forecast Panel (Full Width) */}
+      <div style={{ marginBottom: '24px' }}>
+        <PanelCard title="Predictive Capacity Forecast">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '0.5rem 0' }}>
+            {/* Header/Status Area */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--light-border)', paddingBottom: '1.5rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--light-text-primary)' }}>
+                  {session.patternCount} / {MAX_PATTERN_COUNT} patterns loaded · {MAX_PATTERN_COUNT - session.patternCount} remaining
+                </h3>
+                <p className="caption-line" style={{ margin: '0.5rem 0 0 0' }}>
+                  Empirical sweep under current noise ({session.noisePct}%), decay ({session.decayValue.toFixed(1)}), and {session.sparseMode ? 'BDH Sparse' : 'Classical'} learning mode.
+                </p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--light-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>System Status</span>
+                <div style={{
+                  fontSize: '1.5rem', 
+                  fontWeight: '800',
+                  color: predictiveForecast.status.includes('SAFE') ? 'var(--teal-primary)' : 
+                         predictiveForecast.status === 'NEAR CAPACITY' ? '#f59e0b' : '#ef4444'
+                }}>
+                  {predictiveForecast.status}
+                </div>
+              </div>
+            </div>
+
+            {/* Metrics & Chart row */}
+            <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+              {/* Metrics column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: '220px' }}>
+                <div style={{ background: 'var(--light-bg)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--light-border)' }}>
+                  <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--light-text-muted)', marginBottom: '0.25rem' }}>Current Load</span>
+                  <span style={{ display: 'block', fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--light-text-primary)' }}>{session.patternCount}</span>
+                </div>
+                <div style={{ background: 'var(--light-bg)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--light-border)' }}>
+                  <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--light-text-muted)', marginBottom: '0.25rem' }}>Measured Safe Capacity</span>
+                  <span style={{ display: 'block', fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--light-text-primary)' }}>{predictiveForecast.crossover === 0 ? `≥${MAX_PATTERN_COUNT}` : predictiveForecast.safeCapacity}</span>
+                </div>
+                <div style={{ background: 'var(--light-bg)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--light-border)' }}>
+                  <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--light-text-muted)', marginBottom: '0.25rem' }}>Remaining Margin</span>
+                  <span style={{ display: 'block', fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--light-text-primary)' }}>{predictiveForecast.remainingMargin}</span>
+                </div>
+              </div>
+
+              {/* Chart column */}
+              <div style={{ flex: 1, minWidth: 0, paddingLeft: '1rem' }}>
+                <ResponsiveContainer width="100%" height={360}>
+                  <LineChart data={predictiveForecast.chartData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                    <XAxis dataKey="n" stroke="var(--light-text-muted)" tickMargin={10} />
+                    <YAxis domain={[0, 100]} stroke="var(--light-text-muted)" tickMargin={10} />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'var(--light-card-bg)',
+                        borderColor: 'var(--light-border)',
+                        color: 'var(--light-text-primary)',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                    
+                    <ReferenceLine y={CONFIG.PASS_THRESHOLD} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={2} label={{ position: 'insideTopLeft', value: 'Failure Boundary', fill: '#ef4444', fontSize: 13, fontWeight: 600, dy: -10 }} />
+                    <ReferenceLine x={session.patternCount} stroke="var(--teal-primary)" strokeWidth={2} strokeDasharray="3 3" label={{ position: 'insideBottomRight', value: 'Current Load', fill: 'var(--teal-hover)', fontSize: 13, fontWeight: 600, dx: -10, dy: 10 }} />
+                    
+                    <Line type="monotone" dataKey="similarity" stroke="var(--teal-primary)" strokeWidth={4} dot={{ r: 5, fill: '#fff', strokeWidth: 2 }} activeDot={{ r: 8 }} name="Measured Similarity" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         </PanelCard>
       </div>
